@@ -1049,6 +1049,16 @@ In database architecture, this strategy is called **replication**.
 
 #### **Technical Deep Dive: The Solution - Database Replication**
 
+```mermaid
+flowchart LR
+    Users["Users"] --> App["Application Servers"]
+
+    App -->|Writes| Master["Master Database<br>(Writes Only)"]
+    App -->|Reads| Replica["Read Replica<br>(Reads Only)"]
+
+    Master -->|WAL Stream<br>Replication| Replica
+```
+
 Replication is the process of creating and maintaining multiple copies of the same database. Instead of one single database server trying to do everything, we would now have a team of databases, each with a specialized role. The most common form of replication, and the one we implemented, is called **Master-Slave Replication**.
 
 Let's ditch the library analogy for a moment and think of a popular nightclub.
