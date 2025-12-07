@@ -1238,6 +1238,18 @@ This is Priya's VIP Pass.
 - Since the Master always has the absolute latest data, it returns the correct new price of ₹800. Priya sees her change instantly, and her confidence in the platform is maintained.
 - A minute later, the VIP flag in her session expires. Her next read request will go to the Replica as normal, by which time the data has long since been replicated.
 
+```mermaid
+flowchart LR
+    Seller["Seller (just updated data)"] --> App["Application Servers"]
+    Customer["Customer / Public User"] --> App
+
+    App -->|Write| Master["Master Database"]
+    App -->|Read during VIP window| Master
+
+    App -->|Normal Reads| Replica["Read Replica"]
+
+    Master -->|Replication| Replica
+```
 This approach gave us the best of both worlds: massive scalability for the general public, and the feeling of strong consistency for the user who is actually making changes.
 
 ## Chapter 5: Key Takeaways
