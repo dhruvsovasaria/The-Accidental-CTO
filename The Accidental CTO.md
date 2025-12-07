@@ -108,7 +108,6 @@ It hadn't been a sophisticated hack or a complex bug. We had simply run out of r
 Staring at that screen, the phone still pressed to my ear, I had a moment of terrifying clarity. How on earth did I, a guy with no fancy computer science degree, no formal training in scaling systems, end up responsible for this?
 
 To understand that, you first need to understand the beast we were trying to tame. You need to understand the anatomy of the very thing that was currently on fire: our server.
-                
 
 ### Part 2: Anatomy of a Server, or, The Single Chef Kitchen
 
@@ -539,7 +538,7 @@ This was the moment of truth. The most dangerous part of the operation. We had t
 
 The entire downtime was about three minutes.
 
-``` mermaid
+```mermaid
 flowchart TB
  TopNote["Architecture Before the Divorce"]
  subgraph Server1["single machine"]
@@ -555,7 +554,6 @@ flowchart TB
     Django -- SQL CRUD (reads/writes) --> DB
 
 ```
-
 
 ```mermaid
 flowchart TB
@@ -735,6 +733,7 @@ It was clear we needed more cooking power. But how? This led us to a fundamental
 When your server can't handle the load, you have two options.
 
 **1\. Vertical Scaling (Scaling Up)**
+
 ```mermaid
 flowchart TB
  subgraph After["After Scaling"]
@@ -748,6 +747,7 @@ flowchart TB
     U2 --> S2
     U1 --> S1
 ```
+
 This is the most intuitive approach. If your kitchen is too slow, you replace your talented chef with a world-famous super-chef who can cook twice as fast.
 
 In server terms, you **scale up**. You click a button on DigitalOcean to shut down your current server. You then select a much bigger, more powerful plan-one with 8 CPUs and 16GB of RAM instead of 2 CPUs and 4GB of RAM. You turn it back on. Voila, your app is now running on a beast of a machine. It's like swapping out your family car for a giant monster truck.
@@ -759,6 +759,7 @@ In server terms, you **scale up**. You click a button on DigitalOcean to shut do
   - **It's a single point of failure.** This is the most critical flaw. You now have a very powerful, very expensive single server. If that one server has a hardware failure, or needs to be rebooted for a security patch, your entire business goes offline. Your entire restaurant depends on that one super-chef. If he gets sick, the restaurant closes.
 
 **2\. Horizontal Scaling (Scaling Out)**
+
 ```mermaid
 
 flowchart TB
@@ -974,6 +975,18 @@ There's a fundamental shift that happens when your startup grows from a few thou
 But as you cross the 100,000 user mark, a new class of problem emerges. The fires are replaced by a slow, creeping heat. The system doesn't crash; it just gets… heavy. Sluggish. The problems are no longer about survival, but about performance. And the solutions require less brute force and more surgical precision. You have to stop thinking about just keeping the lights on and start thinking about the architecture of the building itself.
 
 Our load-balanced, horizontally-scaled application fleet had solved the "kitchen on fire" problem. But now, the library was getting so crowded you could barely move.
+
+```mermaid
+flowchart TB
+    Users["Users"] --> LB["Load Balancer"]
+    LB --> App1["App Server 1"] & App2["App Server 2"] & App3["App Server 3"]
+
+    App1 --> DB["Single Database<br>(Read + Write)"]
+    App2 --> DB
+    App3 --> DB
+
+    DB -.-> Note["High CPU<br>High Disk I/O<br>Slow Queries"]
+```
 
 ### Part 1: The Traffic Jam inside the Library
 
