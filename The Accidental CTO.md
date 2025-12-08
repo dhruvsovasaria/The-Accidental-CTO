@@ -1786,7 +1786,18 @@ One afternoon, the Operations squad was working on a new integration with a logi
 Both teams worked in parallel. Both tested their features on the staging server. Everything looked fine. The logistics feature was approved first and deployed to production. An hour later, the discounts feature was also approved and deployed.
 
 And then, chaos.
+```mermaid
+flowchart TB
+    subgraph Monolith["Monolithic Django Application"]
+        Orders["Orders"]
+        Payments["Payments"]
+        Logistics["Logistics"]
+        Storefront["Storefront"]
+    end
 
+    Growth["Growth Team"] --> Monolith
+    Ops["Operations Team"] --> Monolith
+```
 Our payment processing webhook, the critical endpoint that confirms a customer's payment has been successful, started failing for every single order. Money was being charged to customers, but the orders weren't being marked as "Paid" in our system. From a seller's perspective, orders were just vanishing after payment.
 
 Suumit's call was immediate. This wasn't about a slow website; this was about losing our users' money. This was a five-alarm fire.
@@ -1867,6 +1878,21 @@ The Storefront is the public-facing part of a seller's shop-the page that custom
 There was one more massive advantage. The Storefront had a completely different **scaling profile** from the rest of the application. The seller dashboard might get thousands of visits a day, but a popular store's page could get _millions_. By carving it out, we could scale it independently. We could have a fleet of 20 powerful servers for the Storefront service, while keeping a smaller, more efficient fleet of 3 servers for the seller dashboard, saving us a huge amount of money.
 
 The plan was set. We would perform surgery. We would carefully extract all the code, templates, and logic related to the public storefront and re-build it as a brand new, completely independent application: the storefront-service.
+```mermaid
+flowchart TB
+    subgraph Core["Core API (Former Monolith)"]
+        Orders["Orders"]
+        Payments["Payments"]
+        Logistics["Logistics"]
+    end
+
+    StoreSvc["Storefront Service<br>(Read-only)"]
+
+    DB[(PostgreSQL Read Replica)]
+
+    Core --> DB
+    StoreSvc --> DB
+```
 
 #### **The New Problem: Inter-Service Communication**
 
@@ -1889,6 +1915,13 @@ We needed a strategy to replace the old system piece by piece, gradually and saf
 #### **Technical Deep Dive: The Strangler Fig Pattern**
 
 In the rainforest, a strangler fig is a vine that begins its life on an old, established tree. It starts small, sending down roots around the host tree's trunk. Over years, these roots grow thicker and stronger, creating a new, powerful lattice structure that completely envelops the old tree. Eventually, the host tree inside can die and rot away, leaving behind the strong, healthy, and perfectly formed structure of the strangler fig.
+```mermaid
+flowchart TB
+    Users["Users"] --> Nginx["Nginx (Router / Proxy)"]
+
+    Nginx -->|/dashboard /orders| Core["Core API"]
+    Nginx -->|/store/*| StoreSvc["Storefront Service"]
+```
 
 This is a perfect metaphor for replacing a legacy system.
 
@@ -1906,6 +1939,12 @@ Over months or years, the new microservices (the fig vine) grow stronger and tak
 
 #### **Our Implementation: Nginx as the Strangler**
 
+```mermaid
+flowchart LR
+    Phase1["Phase 1<br>Storefront Traffic"] --> M1["Monolith"]
+    Phase2["Phase 2<br>Storefront Traffic"] --> M2["Core API"] & S2["Storefront Service"]
+    Phase3["Phase 3<br>Storefront Traffic"] --> S3["Storefront Service"]
+```
 Once again, our trusty tool Nginx was perfect for the job. We were already using it as a load balancer. We could enhance its configuration to also act as this intelligent router.
 
 We built our new, standalone storefront-service. It was a lean, fast application whose only job was to render store pages. Then, we updated the Nginx configuration on our load balancer with some new logic:
