@@ -2036,6 +2036,15 @@ We restarted the script, and the problem was solved, but the damage was done. We
 
 #### **Identifying the Problem: A System Built on a Prayer**
 
+
+```mermaid
+flowchart LR
+    App["Monolith App"] --> DB["PostgreSQL Master"]
+    DB -- NOTIFY --> Invalidator["Cache Invalidator (Listener)"]
+    Invalidator --> Redis["Redis Cache"]
+    Invalidator -.-> Problem["Single Point of Failure<br>Messages lost if crashed"]
+```
+
 The incident exposed the fundamental weakness of our event-driven system. The LISTEN/NOTIFY mechanism was a clever feature of Postgres, but it was not a robust, production-grade messaging system.
 
 - **It Was Fragile:** As we discovered, if our listener service crashed or disconnected, any messages sent by the database during that downtime were lost forever. There was no persistence. The database just shouts the message into the void; if no one is listening, the message disappears.
@@ -2071,6 +2080,21 @@ A distributed log like Apache Kafka works on a completely different principle. I
 - **Analogy:** A producer (our main app) is a journalist. When a product price changes, the journalist writes a short article: "Price changed for store 456." They don't send it to a specific person; they publish it in a specific section of the newspaper, let's say the **product_updates** section (this is the **Topic** in Kafka).
 - Now, multiple independent subscribers can read this newspaper. The Cache Invalidator service subscribes to the product_updates section. A new Search Indexer service can also subscribe to the same section to update its search results. An Analytics service can also subscribe to track pricing trends.
 - Crucially, when the Cache Invalidator reads the article, the article is **not removed** from the newspaper. It remains there for other subscribers to read. The newspaper itself is a durable, permanent record of everything that has happened.
+
+```mermaid
+flowchart TB
+    subgraph Queue["Message Queue"]
+        P1["Producer"] --> Q["Queue"]
+        Q --> C1["Single Consumer"]
+    end
+
+    subgraph Kafka["Kafka (Distributed Log)"]
+        P2["Producer"] --> T["Topic (Event Log)"]
+        T --> C2["Consumer A"]
+        T --> C3["Consumer B"]
+        T --> C4["Consumer C"]
+    end
+```
 
 This was the lightbulb moment for us. Our problem wasn't just about telling one service to invalidate a cache. We were starting to see a future where many different parts of our system would need to react to the same events. When an order is placed, we need to:
 
@@ -2117,6 +2141,12 @@ Debezium is an open-source **Change Data Capture (CDC)** platform. To understand
 
 - **The Problem:** How do you know when a change has been made to the master manuscript in the vault? You could ask the author to shout "I've made a change!" every time they write something, but they might forget.
 - **The Debezium Solution:** Debezium is like a high-tech scanner placed directly over the master manuscript. It doesn't watch the author; it watches the manuscript itself. It reads the ink as it dries. The moment a single word is added, changed, or erased in the database's transaction log (the WAL), Debezium sees it, captures the exact change, formats it into a perfect message, and produces it to the correct Kafka topic.
+```mermaid
+flowchart LR
+    App["Monolith App"] --> DB["PostgreSQL Master"]
+    DB -->|WAL| Debezium["Debezium (CDC)"]
+    Debezium --> Kafka["Kafka Topic<br>(product_updates)"]
+```
 
 This was revolutionary for us. Our monolith application **didn't even need to know that Kafka existed**. We made zero changes to our application's write logic. We just kept saving data to our PostgreSQL database as we always had. Debezium worked in the background, completely independently, watching the database's WAL and faithfully publishing every single change to our Kafka topics. This completely decoupled our application from our messaging system. It was cleaner, more reliable, and impossible for a developer to forget.
 
@@ -2127,7 +2157,19 @@ The final step was to upgrade our Cache Invalidator service. This was simple. We
 The new service simply subscribed to the product_updates topic (which was now being reliably populated by Debezium). When a message came in, it would read the store_id from the message payload and fire off the redis_client.del() command. Thanks to Kafka's consumer groups, we could now run two or three instances of this service at the same time. If one crashed, the others would seamlessly pick up the slack. Our single point of failure was gone.
 
 #### **The New Blueprint**
+```mermaid
+flowchart LR
+    App["Core Monolith<br/>(Writes Data)"] --> DB["PostgreSQL Master"]
 
+    DB -->|WAL| Debezium["Debezium CDC"]
+    Debezium --> Kafka["Kafka Topic<br/>(Durable Event Log)"]
+
+    Kafka --> CI["Cache Invalidator<br/>(Implemented Consumer Group)"]
+
+    Kafka --> Future["Other Future Consumers<br/>(Search, Analytics, etc.)"]
+
+    CI --> Redis["Redis Cache"]
+```
 Our data consistency architecture was now robust, scalable, and elegant. The flow was completely different.
 
 **Monolith App -> Master DB (WAL) -> Debezium -> Kafka Topic -> Consumer Service(s) -> Redis**
@@ -2146,6 +2188,53 @@ Kafka is incredibly powerful, but it's not magic. It's a complex piece of infras
 - Are our topics filling up the disk space on the brokers?
 
 We had traded the fragility of our old system for the **operational complexity** of the new one. Our simple house was now a complex estate with its own power plant. The power plant is far more reliable, but it requires skilled engineers to maintain it. This was a necessary trade-off, the price of admission for building a true microservices architecture.
+
+Complete system architecture after introducing microservices, caching, and Kafka-based data consistency:
+```mermaid
+flowchart LR
+    %% ===== USERS =====
+    Users["Users / Customers"]
+
+    %% ===== ENTRY =====
+    Nginx["NGINX<br/>(Load Balancer + Strangler Router)"]
+    Users --> Nginx
+
+    %% ===== APPLICATION LAYER =====
+    subgraph AppLayer["Application Layer"]
+        Monolith["Core API<br/>(Monolith)"]
+        Storefront["Storefront Service<br/>(Read-heavy Microservice)"]
+    end
+
+    Nginx --> Monolith
+    Nginx --> Storefront
+
+    %% ===== CACHE (FASTEST PATH) =====
+    Redis["Redis Cache<br/>(Cache-first)"]
+
+    Monolith -->|GET / SET| Redis
+    Storefront -->|GET / SET| Redis
+
+    %% ===== DATABASE =====
+    subgraph DBLayer["Database Layer"]
+        Master["PostgreSQL Master<br/>(Writes)"]
+        Replica["PostgreSQL Read Replica<br/>(Reads on Cache MISS)"]
+    end
+
+    %% Writes
+    Monolith -->|WRITE| Master
+
+    %% Reads (only if cache miss)
+    Monolith -->|READ| Replica
+    Storefront -->|READ| Replica
+
+    %% ===== EVENT PIPELINE =====
+    Master -->|"WAL"| Debezium["Debezium<br/>(CDC)"]
+    Debezium --> Kafka["Kafka Topics"]
+
+    %% ===== CONSUMER =====
+    Kafka --> CI["Cache Invalidator<br/>(Kafka Consumer Service)"]
+    CI -->|DEL keys| Redis
+```
 
 ## Chapter 9: Key Takeaways
 
