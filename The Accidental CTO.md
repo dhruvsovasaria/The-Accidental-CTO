@@ -1275,6 +1275,12 @@ Our process for deploying code was, in hindsight, terrifyingly simple. An engine
 
 From a developer's brain to a live user's screen in under five minutes. We thought this was the pinnacle of agility. In reality, it was like doing a trapeze act without a safety net.
 
+```mermaid
+flowchart LR
+    Dev["Developer Laptop"] --> Repo["GitHub Repo"]
+    Repo --> Prod["Production Environment<br>(Live Users)"]
+```
+
 One Tuesday afternoon, a new junior developer-let's call him Rohan-was tasked with adding a simple feature: a button to sort products by price. He was a sharp kid, and he built the feature in a couple of hours. On his laptop, using his test store which had about 15 products, it worked perfectly. The products sorted instantly. Confident in his work, he pushed the code.
 
 Five minutes later, my phone exploded.
@@ -1303,6 +1309,12 @@ He was right. We had been flying without a parachute. It was time to grow up.
 The root of our problem was that we had only two places where our code existed: on a developer's laptop, and in front of live customers. There was no step in between. A professional software team needs a proper assembly line, with quality checks at each stage. This is the **Software Development Lifecycle**.
 
 #### **Technical Deep Dive: The Environments**
+
+```mermaid
+flowchart LR
+    Dev["Development Environment<br>(Developer Laptop)"] --> Staging["Staging Environment<br>(Production Mirror)"]
+    Staging --> Prod["Production Environment<br>(Live Users)"]
+```
 
 Think of a high-end restaurant. They don't just cook and serve. They have a rigorous process that involves three distinct environments.
 
@@ -1397,6 +1409,23 @@ Our old method of a developer manually running a script to push code directly to
 We needed to replace this chaotic sprint with a calm, orderly, and predictable process. We needed to build an assembly line for our code. In the tech world, this is called a **Deployment Pipeline**.
 
 #### **Technical Deep Dive: The Deployment Pipeline**
+```mermaid
+flowchart LR
+    Dev["Developer Code"]
+    PR["Pull Request"]
+    Review["Code Review"]
+    Tests["Automated Tests"]
+    Staging["Deploy to Staging"]
+    QA["Manual QA"]
+    Prod["Deploy to Production"]
+
+    Dev --> PR
+    PR --> Review
+    Review --> Tests
+    Tests --> Staging
+    Staging --> QA
+    QA --> Prod
+```
 
 A deployment pipeline is an automated process that takes code from a developer's laptop and safely moves it through a series of quality checks before it is finally delivered to users.
 
