@@ -1489,6 +1489,25 @@ This process transformed our team. It replaced chaos with order, anxiety with co
 ## Chapter 7: The Need for Speed: Caching with Redis
 
 We had survived the wars of stability. Our architecture was now resilient, our deployment process was professional, and our systems could withstand crashes and traffic spikes. We had grown from a garage band into a well-rehearsed orchestra. Our user base had crossed the 1 million seller mark, a milestone that felt like a dream just a few months prior.
+At this point, our production system looked like this:
+
+```mermaid
+flowchart LR
+ subgraph Production["Production Runtime"]
+        App1["App Server 1<br>(Django + Gunicorn)"]
+        LB["Nginx Load Balancer"]
+        App2["App Server 2<br>(Django + Gunicorn)"]
+        DBM["PostgreSQL Master"]
+        DBR["PostgreSQL Read Replica"]
+  end
+    LB --> App1 & App2
+    App1 -- Writes --> DBM
+    App2 -- Writes --> DBM
+    App1 -- Reads --> DBR
+    App2 -- Reads --> DBR
+    DBM -- Streaming Replication --> DBR
+    Users["Users / Browsers"] --> LB
+```
 
 But a new challenge was emerging, one that was quieter but just as dangerous as a server crash. Our problem was no longer about _availability_; it was about _performance_. It wasn't enough for our stores to be online; they had to be fast. In the world of e-commerce, speed isn't a feature; it's a fundamental requirement. A one-second delay in page load time can lead to a significant drop in conversions.
 
@@ -1633,8 +1652,27 @@ Every single subsequent visitor for the next hour would trigger a "CACHE HIT". T
 Our architecture had evolved once again, with Redis now sitting as a high-speed buffer between our application and our database.
 
 The new flow was: User Request -> Application -> **Check Redis First** -> (If Miss) -> PostgreSQL Database.
+```mermaid
+flowchart LR
+    User --> App["Application Servers"]
 
+    App -->|Check Cache| Redis["Redis Cache"]
+    Redis -->|Cache Hit| App
+
+    App -->|Cache Miss| DB["PostgreSQL"]
+    DB --> App
+    App -->|Store Result| Redis
+```
 #### **The New Problem: Stale Cache**
+```mermaid
+flowchart LR
+    Seller["Seller Updates Price"] --> DB["Master Database"]
+
+    User["Customer"] --> App["Application Servers"]
+    App --> Redis["Redis Cache"]
+
+    Redis -.-> Note["Old price still cached"]
+```
 
 We had solved the speed problem. But in doing so, we had created a new, insidious one.
 
@@ -1701,6 +1739,22 @@ The complete flow was a thing of beauty:
 - Our Cache Invalidator service, which is constantly listening, receives the message.
 - The service instantly knows what to do. It says, "The data for store 456 is now stale. I must destroy the cache."
 - The service connects to Redis and issues a single, lightning-fast command: DEL store_catalog:store-456. The old JSON object on the whiteboard is instantly erased.
+
+```mermaid
+flowchart LR
+    Seller["Seller Updates Product"] --> App["Application Servers"]
+
+    App -->|Write| DB["PostgreSQL Master"]
+    DB -->|Trigger| Notify["NOTIFY product_changes"]
+
+    Notify --> Inval["Cache Invalidator Service"]
+    Inval -->|DEL store_catalog:*| Redis["Redis Cache"]
+
+    User["Customer"] --> App
+    App -->|Read| Redis
+    App -->|Cache Miss| DB
+    App -->|Repopulate Cache| Redis
+```
 
 Now, when Priya refreshes her store page, our application code checks Redis. It finds nothing (a "cache miss"). It then proceeds to query the database, gets the fresh, correct price of ₹800, rebuilds the JSON, and saves this new, correct version back to the cache. The ghost of old data was vanquished.
 
