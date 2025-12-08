@@ -1493,7 +1493,7 @@ At this point, our production system looked like this:
 
 ```mermaid
 flowchart LR
- subgraph Production["Production Runtime"]
+ subgraph Production["Production"]
         App1["App Server 1<br>(Django + Gunicorn)"]
         LB["Nginx Load Balancer"]
         App2["App Server 2<br>(Django + Gunicorn)"]
