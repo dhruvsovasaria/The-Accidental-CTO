@@ -2565,6 +2565,26 @@ The new, complete data flow for a product update was a perfect illustration of t
 - Now, two completely independent services, both subscribed to this same topic, spring into action simultaneously:
   - **Consumer #1 (The Cache Invalidator):** Our existing service sees the message, reads the store_id, and sends a command to **Redis** to delete the old, stale cache for that store.
   - **Consumer #2 (The New Search Service):** Our new service also receives the exact same message. It parses the full product data, transforms it into a JSON document, and sends it to the **Elasticsearch** cluster to be indexed.
+```mermaid
+flowchart TB
+
+    User["User"] --> Storefront["Storefront / API"]
+    Storefront --> SearchAPI["Search Service"]
+
+    SearchAPI --> ES["Elasticsearch<br>(Inverted Index + Ranking)"]
+
+    Seller["Seller Updates Product"] --> App["Monolith App"]
+    App --> DB["PostgreSQL Master"]
+
+    DB -->|WAL| Debezium
+    Debezium --> Kafka["Kafka Topic<br>product_updates"]
+
+    Kafka --> CacheInv["Cache Invalidator"]
+    Kafka --> SearchSvc["Search Service<br>(Indexer)"]
+
+    CacheInv --> Redis["Redis Cache"]
+    SearchSvc --> ES
+```
 
 This system was beautiful. The monolith application, which handled the seller's initial action, had **zero knowledge** that a search engine or a cache even existed. Its only job was to save data to the database. The downstream systems-caching, search, and in the future, analytics or a recommendation engine-could all independently subscribe to the stream of events and react accordingly. We could add new features powered by these events without ever touching our core application code.
 
