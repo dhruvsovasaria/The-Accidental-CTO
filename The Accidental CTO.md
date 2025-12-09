@@ -1971,6 +1971,32 @@ Docker allowed us to package our entire application-the code, the specific versi
 
 Now, we could pick up that container and run it on any server that had Docker installed-Anjali's Macbook, our staging server, our production server-and it would work in the exact same way, every single time. The "it works on my machine" problem was solved forever. The container _was_ the machine.
 
+```mermaid
+flowchart TB
+ subgraph VM["Virtual Machines (Heavy)"]
+        VM_HW["Physical Server<br>(CPU / RAM / Disk)"]
+        VM_HV["Hypervisor"]
+        VM1["VM 1<br>Guest OS<br>App"]
+        VM2["VM 2<br>Guest OS<br>App"]
+        VM3["VM 3<br>Guest OS<br>App"]
+        VM_note["Each VM has its own full OS<br>• High overhead<br>• Slow startup<br>• Fewer apps per server"]
+  end
+ subgraph CT["Containers (Lightweight)"]
+        CT_HW["Physical Server<br>"]
+        CT_OS["Host OS Kernel"]
+        CT_Docker["Docker Engine"]
+        C1["Container 1<br>App + Deps"]
+        C2["Container 2<br>App + Deps"]
+        C3["Container 3<br>App + Deps"]
+        CT_note["All containers share host OS kernel<br>• Low overhead<br>• Fast startup<br>• Many more apps per server"]
+  end
+    VM_HW --> VM_HV
+    VM_HV --> VM1 & VM2 & VM3
+    CT_HW --> CT_OS
+    CT_OS --> CT_Docker
+    CT_Docker --> C1 & C2 & C3
+```
+
 #### **The Docker Components: Blueprint, Box, and Building**
 
 To work with Docker, you only need to understand three core concepts:
