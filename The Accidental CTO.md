@@ -2986,45 +2986,6 @@ We wrote one more YAML file for our Ingress rule, ran kubectl apply, and just li
 
 We had done it. We had tamed the chaos of hundreds of containers. We had a conductor for our orchestra.
 
-```mermaid
-flowchart TB
-
-    %% USERS
-    User["Users"]
-
-    %% STATIC CONTENT
-    User -->|Static Assets| CDN["CDN<br>(Images, CSS, JS)"]
-
-    %% DYNAMIC TRAFFIC
-    User -->|HTML / API Requests| Ingress["Ingress<br>(HTTP Router)"]
-
-    %% APPLICATION LAYER
-    Ingress --> Storefront["Storefront Service<br>(Read-heavy)"]
-    Ingress --> CoreAPI["Core API / Monolith<br>(Writes)"]
-    Ingress --> SearchAPI["Search API"]
-
-    %% CACHE + READS
-    Storefront --> Redis["Redis Cache"]
-    Redis --> ReadReplica["PostgreSQL Read Replica"]
-    CoreAPI --> MasterDB["PostgreSQL Master"]
-
-    %% REPLICATION
-    MasterDB --> ReadReplica
-
-    %% SEARCH
-    SearchAPI --> ES["Elasticsearch Cluster"]
-
-    %% EVENT PIPELINE
-    MasterDB --> Debezium["Debezium<br>(CDC)"]
-    Debezium --> Kafka["Kafka Topics"]
-
-    Kafka --> CacheInv["Cache Invalidation Service"]
-    Kafka --> SearchIndexer["Search Indexer Service"]
-
-    CacheInv --> Redis
-    SearchIndexer --> ES
-```
-
 ## Chapter 13: Key Takeaways
 
 - **Kubernetes is the conductor for your container orchestra.** It replaces manual, error-prone tasks with automated, declarative management.
