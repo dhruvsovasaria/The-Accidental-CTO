@@ -2684,6 +2684,34 @@ This was the final step. Our website's code was still generating old image links
 We had to update our code to generate new links that pointed to the CDN instead. We also set up a custom, more professional-looking domain name, cdn.dukaan.app, that pointed to the ugly CloudFront address. The new image URLs now looked like this: <https://cdn.dukaan.app/seller123/product.jpg>
 
 We deployed the code change. The surgery was complete.
+```mermaid
+flowchart LR
+    User["User"]
+
+    subgraph Mumbai["Mumbai Region"]
+        App["App Server (Django)"]
+        DB["Primary Database"]
+    end
+
+    subgraph Global["Global"]
+        CDN["CDN Edge 
+        (Nearest to User)"]
+        Origin["Static Asset Origin 
+        (S3 in Mumbai)"]
+    end
+
+    %% HTML flow
+    User -->|1. HTML request| App
+    App -->|2. Query| DB
+    DB -->|3. Data| App
+    App -->|4. HTML response| User
+
+    %% Static asset flow
+    User -->|5. Image / CSS / JS request| CDN
+    CDN -->|6. Cache miss once| Origin
+    Origin -->|7. Asset| CDN
+    CDN -->|8. Asset| User
+```
 
 #### **The Result: A Faster Site and a Cheaper Bill**
 
