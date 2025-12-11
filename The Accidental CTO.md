@@ -2036,7 +2036,6 @@ We restarted the script, and the problem was solved, but the damage was done. We
 
 #### **Identifying the Problem: A System Built on a Prayer**
 
-
 ```mermaid
 flowchart LR
     App["Monolith App"] --> DB["PostgreSQL Master"]
