@@ -3235,6 +3235,16 @@ This required a significant change in our application's core logic. We had to bu
 - If **no**, open a connection to the **Public Shard DB**.
 
 This logic was implemented across our entire codebase, ensuring that the data and the workload for our enterprise clients and our public sellers would be completely isolated from each other, from the moment the request first hit our application.
+```mermaid
+flowchart TB
+    UserA["Normal Seller Customers"] --> App["Dukaan App Servers"]
+    UserB["WOW Customers"] --> App
+
+    App --> Router["Shard Router<br>(Decides DB Based on store_id)"]
+
+    Router --> PublicDB["Public Shard DB Cluster<br>(All small/medium sellers)"]
+    Router --> EnterpriseDB["Enterprise Shard DB Cluster<br>(WOW only)"]
+```
 
 #### **The Benefits of the Fortress**
 
