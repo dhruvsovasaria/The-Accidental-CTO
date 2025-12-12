@@ -1,0 +1,15 @@
+flowchart LR
+    Dev["Developer Code"]
+    PR["Pull Request"]
+    Review["Code Review"]
+    Tests["Automated Tests"]
+    Staging["Deploy to Staging"]
+    QA["Manual QA"]
+    Prod["Deploy to Production"]
+
+    Dev --> PR
+    PR --> Review
+    Review --> Tests
+    Tests --> Staging
+    Staging --> QA
+    QA --> Prod

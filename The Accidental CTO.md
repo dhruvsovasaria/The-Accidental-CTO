@@ -1,7 +1,4 @@
-
 ![Book Cover ](https://github.com/user-attachments/assets/8f527042-fd7e-43bb-ac63-8c179fe19f28)
-
-
 
 # Chapters
 
@@ -21,9 +18,9 @@
 
 - [Chapter 8: Breaking the Monolith: Our First Microservice](#chapter-8-breaking-the-monolith-our-first-microservice)
 
-- [Chapter 9: The Unbreakable Promise: Data Consistency with Kafka](#chapter-9-the-unbreakable-promise-data-consistency-with-kafka) 
+- [Chapter 9: The Unbreakable Promise: Data Consistency with Kafka](#chapter-9-the-unbreakable-promise-data-consistency-with-kafka)
 
-- [Chapter 10: The Shipping Container Revolution: An Introduction to Docker](#chapter-10-the-shipping-container-revolution-an-introduction-to-docker)  
+- [Chapter 10: The Shipping Container Revolution: An Introduction to Docker](#chapter-10-the-shipping-container-revolution-an-introduction-to-docker)
 
 - [Chapter 11: The Smart Clerk: Building World-Class Search](#chapter-11-the-smart-clerk-building-world-class-search)
 
@@ -39,7 +36,7 @@
 
 - [Chapter 17: Escaping the Golden Cage: From AWS to Bare Metal](#chapter-17-escaping-the-golden-cage-from-aws-to-bare-metal)
 
-- [Chapter 18: The Grand Finale: A Live Failover](#chapter-18-the-grand-finale-a-live-failover) 
+- [Chapter 18: The Grand Finale: A Live Failover](#chapter-18-the-grand-finale-a-live-failover)
 
 - [Chapter 19: The Accidental CTO](#chapter-19-the-accidental-cto)
 
@@ -48,6 +45,8 @@
 <br/>
 
 ## Chapter 1: The 3 AM Phone Call
+
+[View System Diagram](diagrams/chapter-01.md)
 
 ### Part 1: The Crash
 
@@ -61,8 +60,8 @@ Suumit Shah, my co-founder, my partner-in-crime, the business brain to my builde
 
 I swiped to answer, my voice a dry, croaky mess. "Hello?"
 
-> "Subhash! Uth! Sab bandh ho gaya hai!" 
-Suumit's voice was a shotgun blast of adrenaline and panic through the phone speaker. _Wake up! Everything's shut down!_
+> "Subhash! Uth! Sab bandh ho gaya hai!"
+> Suumit's voice was a shotgun blast of adrenaline and panic through the phone speaker. _Wake up! Everything's shut down!_
 
 He didn't need to say more. I was already out of bed, the cold floor a shock to my system. I stumbled towards my laptop, the familiar white glow of the Apple logo a beacon in the dark room. My mind was a whirlwind, a frantic checklist of digital disasters.
 
@@ -539,6 +538,43 @@ This was the moment of truth. The most dangerous part of the operation. We had t
 
 The entire downtime was about three minutes.
 
+```mermaid
+flowchart TB
+ TopNote["Architecture Before the Divorce"]
+ subgraph Server1["single machine"]
+    direction TB
+        Nginx["Nginx (Web Server)"]
+        Gunicorn["Gunicorn (App Server)"]
+        Django["Django Application"]
+        DB[("PostgreSQL Database")]
+  end
+    Client(["Client / Browser"]) -- HTTP --> Nginx
+    Nginx --> Gunicorn
+    Gunicorn --> Django
+    Django -- SQL CRUD (reads/writes) --> DB
+
+```
+
+```mermaid
+flowchart TB
+ TopNote["Architecture After the Divorce"]
+
+ subgraph AppSrv["Application Server"]
+    direction TB
+        Nginx2["Nginx"]
+        Gunicorn2["Gunicorn"]
+        Django2["Django Application"]
+  end
+ subgraph DBSrv["Database Server"]
+    direction TB
+        DB2[("PostgreSQL Database")]
+  end
+    Client(["Client / Browser"]) -- HTTP --> Nginx2
+    Nginx2 --> Gunicorn2
+    Gunicorn2 --> Django2
+    Django2 -- SQL over network --> DB2
+```
+
 The great divorce was complete. Our app was running in its own kitchen, and our data was safe in its own library. Users immediately started telling us the site felt "snappier." We had survived our first major architectural upgrade. The kitchen was clean, the library was organized, and both could now do their best work without getting in each other's way.
 
 ### Part 3: The New Bottleneck
@@ -576,7 +612,7 @@ For a single request, this latency might be tiny-maybe just 1 or 2 milliseconds 
 
 A single page load could easily result in 10, 20, or even 50 separate trips to the database. Before the divorce, those 50 trips were practically free. Now, they had a real-world cost.
 
-> 50 trips * 2ms latency per trip = 100ms
+> 50 trips \* 2ms latency per trip = 100ms
 
 Suddenly, we had added a tenth of a second of loading time from network latency alone, even if both servers were performing their individual tasks instantly. This was our new bottleneck. We couldn't just throw more hardware at it. We had to get smarter. We had to optimize our code to be less "chatty" with the database.
 
@@ -586,8 +622,8 @@ If each trip to the library is expensive, the logical solution is to make fewer 
 
 - **The N+1 Query Problem:** We discovered we were guilty of the most common performance killer in web development: the "N+1 query" problem. Imagine you want to get a list of 10 stores and the first product from each store. A naive way to code this would be:
   - Make **1** query to get the 10 stores.
-  - Then, loop through each store and make N (in this case, 10) separate queries to get the first product for each one.  
-        This results in a total of 11 trips to the library. Inefficient!
+  - Then, loop through each store and make N (in this case, 10) separate queries to get the first product for each one.
+    This results in a total of 11 trips to the library. Inefficient!
 - **The Solution (select_related and prefetch_related):** Django has built-in tools to solve this. Using a feature called prefetch_related, we could tell Django: "Hey, when you go to get those 10 stores, I know I'm also going to need the products for them, so grab those too while you're there." Django would then cleverly perform just **2** queries instead of 11. It would get all 10 stores in one trip, and then all their products in a second trip, and stitch the data together in our application code. This was our "shopping list." Implementing these optimizations across our codebase had a massive impact, significantly reducing the number of network calls and making the app feel much faster.
 - **Connection Pooling (PgBouncer):** We also realized that creating a new connection to the database for every request was slow. It was like the chef having to find his keys, walk to the library, unlock the door, get the book, lock the door, and then walk back. It's a lot of overhead. To solve this, we introduced a tool called **PgBouncer**. It's a connection pooler. Think of it as a security guard who sits between the kitchen and the library and holds a set of pre-unlocked keys. When our app needs to talk to the database, it just asks PgBouncer for an available connection, which is instantly granted. This saved us the overhead of establishing a new connection for every small request, further reducing our effective latency.
 
@@ -624,18 +660,18 @@ This is a more diverse galaxy with planets like **MongoDB** (Document), **Cassan
 <br/>
 #### **A Quick Comparison**
 
-| Feature | SQL (PostgreSQL) | NoSQL (e.g., MongoDB) |
-| --- | --- | --- |
-| **Data Model** | Structured (Tables & Rows) | Flexible (Documents, Key-Value) |
-| --- | --- | --- |
-| **Schema** | Predefined & Strict | Dynamic & Flexible |
-| --- | --- | --- |
-| **Scaling** | Primarily Vertical (Bigger Servers) & Read Replicas | Primarily Horizontal (More Servers) |
-| --- | --- | --- |
-| **Consistency** | Strong (ACID Guarantees) | Tunable, often Eventual (BASE) |
-| --- | --- | --- |
-| **Best For** | E-commerce, Finance, Systems of Record | Social Media, Big Data, IoT, Analytics |
-| --- | --- | --- |
+| Feature         | SQL (PostgreSQL)                                    | NoSQL (e.g., MongoDB)                  |
+| --------------- | --------------------------------------------------- | -------------------------------------- |
+| **Data Model**  | Structured (Tables & Rows)                          | Flexible (Documents, Key-Value)        |
+| ---             | ---                                                 | ---                                    |
+| **Schema**      | Predefined & Strict                                 | Dynamic & Flexible                     |
+| ---             | ---                                                 | ---                                    |
+| **Scaling**     | Primarily Vertical (Bigger Servers) & Read Replicas | Primarily Horizontal (More Servers)    |
+| ---             | ---                                                 | ---                                    |
+| **Consistency** | Strong (ACID Guarantees)                            | Tunable, often Eventual (BASE)         |
+| ---             | ---                                                 | ---                                    |
+| **Best For**    | E-commerce, Finance, Systems of Record              | Social Media, Big Data, IoT, Analytics |
+| ---             | ---                                                 | ---                                    |
 
 <br/>
 #### **Why We Chose the Path of SQL**
@@ -698,6 +734,20 @@ When your server can't handle the load, you have two options.
 
 **1\. Vertical Scaling (Scaling Up)**
 
+```mermaid
+flowchart TB
+ subgraph After["After Scaling"]
+        S2["Single Large Server<br>(More CPU / RAM)"]
+        U2["Users"]
+  end
+ subgraph Before["Before Scaling"]
+        S1["Single Small Server"]
+        U1["Users"]
+  end
+    U2 --> S2
+    U1 --> S1
+```
+
 This is the most intuitive approach. If your kitchen is too slow, you replace your talented chef with a world-famous super-chef who can cook twice as fast.
 
 In server terms, you **scale up**. You click a button on DigitalOcean to shut down your current server. You then select a much bigger, more powerful plan-one with 8 CPUs and 16GB of RAM instead of 2 CPUs and 4GB of RAM. You turn it back on. Voila, your app is now running on a beast of a machine. It's like swapping out your family car for a giant monster truck.
@@ -709,6 +759,16 @@ In server terms, you **scale up**. You click a button on DigitalOcean to shut do
   - **It's a single point of failure.** This is the most critical flaw. You now have a very powerful, very expensive single server. If that one server has a hardware failure, or needs to be rebooted for a security patch, your entire business goes offline. Your entire restaurant depends on that one super-chef. If he gets sick, the restaurant closes.
 
 **2\. Horizontal Scaling (Scaling Out)**
+
+```mermaid
+
+flowchart TB
+    Users --> LB["Traffic Distributor"]
+
+    LB --> S1["Server 1"]
+    LB --> S2["Server 2"]
+    LB --> S3["Server 3"]
+```
 
 This is the less intuitive, but far more powerful approach. Instead of hiring one super-chef, you keep your talented chef and you hire three more just like him. You expand your kitchen and have them all work in parallel.
 
@@ -838,7 +898,23 @@ server   {
 That was it. The upstream block defined our fleet. The least_conn; line set our intelligent routing strategy. And the proxy_pass directive told Nginx to start directing traffic. After saving the file and restarting Nginx, our load balancer was live.
 
 <br/>
-#### **The New Blueprint**
+
+**The New Blueprint**
+
+```mermaid
+flowchart TB
+ subgraph Server1["App Server 1"]
+        Nginx["NGINX<br>(Web Server + Load Balancer) <br><br>"]
+        App1["Django App <br>(Gunicorn)"]
+  end
+ subgraph Server2["App Server 2"]
+        App2["Django App <br>(Gunicorn)"]
+  end
+    Users["Users"] --> Nginx
+    Nginx --> App1 & App2
+    App1 --> DB[("Shared Database Server")]
+    App2 --> DB
+```
 
 Our architecture had evolved again. The traffic flow was now much more sophisticated and resilient.
 
@@ -854,6 +930,25 @@ If App Server 1 were to crash, the Nginx load balancer's health check would dete
 #### **The New Problem: The Library is Getting Crowded**
 
 For a while, this new setup worked beautifully. When traffic grew, we didn't panic. We simply spun up a third application server, added its IP address to the Nginx upstream block, and reloaded the configuration. We could add more "chefs" to our kitchen in minutes.
+
+```mermaid
+flowchart TB
+ subgraph Server1["App Server 1"]
+        Nginx["NGINX<br>(Web Server + Load Balancer) <br><br>"]
+        App1["Django App <br>(Gunicorn)"]
+  end
+ subgraph Server2["App Server 2"]
+        App2["Django App <br>(Gunicorn)"]
+  end
+ subgraph Server3["App Server 3"]
+        App3["Django App <br>(Gunicorn)"]
+  end
+    Users["Users"] --> Nginx
+    Nginx --> App1 & App2 & App3
+    App1 --> DB[("Shared Database Server")]
+    App2 --> DB
+    App3 --> DB
+```
 
 But what happens when you have ten chefs all cooking furiously at the same time?
 
@@ -880,6 +975,18 @@ There's a fundamental shift that happens when your startup grows from a few thou
 But as you cross the 100,000 user mark, a new class of problem emerges. The fires are replaced by a slow, creeping heat. The system doesn't crash; it just gets… heavy. Sluggish. The problems are no longer about survival, but about performance. And the solutions require less brute force and more surgical precision. You have to stop thinking about just keeping the lights on and start thinking about the architecture of the building itself.
 
 Our load-balanced, horizontally-scaled application fleet had solved the "kitchen on fire" problem. But now, the library was getting so crowded you could barely move.
+
+```mermaid
+flowchart TB
+    Users["Users"] --> LB["Load Balancer"]
+    LB --> App1["App Server 1"] & App2["App Server 2"] & App3["App Server 3"]
+
+    App1 --> DB["Single Database<br>(Read + Write)"]
+    App2 --> DB
+    App3 --> DB
+
+    DB -.-> Note["High CPU<br>High Disk I/O<br>Slow Queries"]
+```
 
 ### Part 1: The Traffic Jam inside the Library
 
@@ -941,6 +1048,16 @@ The problem was clear. We had a single, crowded entrance to our library, and the
 In database architecture, this strategy is called **replication**.
 
 #### **Technical Deep Dive: The Solution - Database Replication**
+
+```mermaid
+flowchart LR
+    Users["Users"] --> App["Application Servers"]
+
+    App -->|Writes| Master["Master Database<br>(Writes Only)"]
+    App -->|Reads| Replica["Read Replica<br>(Reads Only)"]
+
+    Master -->|WAL Stream<br>Replication| Replica
+```
 
 Replication is the process of creating and maintaining multiple copies of the same database. Instead of one single database server trying to do everything, we would now have a team of databases, each with a specialized role. The most common form of replication, and the one we implemented, is called **Master-Slave Replication**.
 
@@ -1013,7 +1130,7 @@ CAP stands for **Consistency, Availability, and Partition tolerance**. It says t
 
 - **Consistency** means every room in the club sees the same thing at the same time. If the VIP section changes the playlist, the dance floor should instantly hear the new song.
 - **Availability** means the doors are always open. No matter what, the club never turns away a guest - every request gets some answer.
-- **Partition tolerance** means the club keeps running even if the hallway between rooms gets blocked. Maybe the sound system link between the VIP lounge and the dance floor is glitching - the party can't just stop because of that.  
+- **Partition tolerance** means the club keeps running even if the hallway between rooms gets blocked. Maybe the sound system link between the VIP lounge and the dance floor is glitching - the party can't just stop because of that.
 
 Here's the trick: in the real world, partitions are guaranteed. Networks fail, packets drop, cables cut. So every real system has to choose between consistency and availability when partitions happen.
 
@@ -1023,9 +1140,9 @@ When we introduced replicas, we were making that choice - whether we realized it
 
 Say a seller updates the price of a dress in the VIP section from ₹1000 to ₹800. The master records it instantly.
 
-- If the next request goes straight to the master, the guest sees ₹800.  
+- If the next request goes straight to the master, the guest sees ₹800.
 
-- If it hits the replica before the update has streamed across, the guest still sees ₹1000.  
+- If it hits the replica before the update has streamed across, the guest still sees ₹1000.
 
 Both answers are "valid" depending on which room you're standing in. From the seller's perspective, though, it looks broken. They just changed the price - why does the storefront still show the old one?
 
@@ -1041,18 +1158,18 @@ Once you accept CAP, the next question becomes: if we can't have everything, wha
 Here are the big three you'll encounter:
 
 - **Strong Consistency**
-    This is the world people intuitively expect. If a seller updates a product's price to ₹800, then _every single read after that_ - no matter which server it hits - must return ₹800.  
-    In the nightclub analogy, the moment the DJ in the VIP room changes the track, the dance floor instantly hears the new song, no exceptions.  
-    Strong consistency feels clean, but it often comes at the cost of availability. If the hallway between the VIP and dance floor is blocked for even a moment, the club would rather stall than risk anyone hearing the "wrong" song.  
+  This is the world people intuitively expect. If a seller updates a product's price to ₹800, then _every single read after that_ - no matter which server it hits - must return ₹800.  
+   In the nightclub analogy, the moment the DJ in the VIP room changes the track, the dance floor instantly hears the new song, no exceptions.  
+   Strong consistency feels clean, but it often comes at the cost of availability. If the hallway between the VIP and dance floor is blocked for even a moment, the club would rather stall than risk anyone hearing the "wrong" song.
 
-- **Eventual Consistency** 
-    This is where replicas really live. Updates in the VIP section stream to the dance floor as fast as possible, but not instantly. If you're unlucky, you might hear the old song for a few more beats before the change makes it through.  
-    From a user's perspective, this can be confusing: they've just saved new data, but the storefront still shows the old value. Given enough time, everything catches up and all rooms are in sync - but "enough time" might be one second or five, and you can't predict exactly when.  
+- **Eventual Consistency**
+  This is where replicas really live. Updates in the VIP section stream to the dance floor as fast as possible, but not instantly. If you're unlucky, you might hear the old song for a few more beats before the change makes it through.  
+   From a user's perspective, this can be confusing: they've just saved new data, but the storefront still shows the old value. Given enough time, everything catches up and all rooms are in sync - but "enough time" might be one second or five, and you can't predict exactly when.
 
-- **Causal Consistency** 
-    This is a middle ground that tries to preserve the order of cause and effect. If Priya lowers the price of her necklace and then views her own store, causal consistency guarantees that _she_ will see her update, even if the rest of the world hasn't yet.  
-    In the nightclub: if the DJ changes the track, anyone who was in the VIP room to see it happen will always hear the new track, even if people on the dance floor are still catching up.  
-    It doesn't guarantee perfect global alignment, but it protects the logic of "I changed something, therefore I should see the change."  
+- **Causal Consistency**
+  This is a middle ground that tries to preserve the order of cause and effect. If Priya lowers the price of her necklace and then views her own store, causal consistency guarantees that _she_ will see her update, even if the rest of the world hasn't yet.  
+   In the nightclub: if the DJ changes the track, anyone who was in the VIP room to see it happen will always hear the new track, even if people on the dance floor are still catching up.  
+   It doesn't guarantee perfect global alignment, but it protects the logic of "I changed something, therefore I should see the change."
 
 ### **Choosing What Fits**
 
@@ -1121,6 +1238,18 @@ This is Priya's VIP Pass.
 - Since the Master always has the absolute latest data, it returns the correct new price of ₹800. Priya sees her change instantly, and her confidence in the platform is maintained.
 - A minute later, the VIP flag in her session expires. Her next read request will go to the Replica as normal, by which time the data has long since been replicated.
 
+```mermaid
+flowchart LR
+    Seller["Seller (just updated data)"] --> App["Application Servers"]
+    Customer["Customer / Public User"] --> App
+
+    App -->|Write| Master["Master Database"]
+    App -->|Read during VIP window| Master
+
+    App -->|Normal Reads| Replica["Read Replica"]
+
+    Master -->|Replication| Replica
+```
 This approach gave us the best of both worlds: massive scalability for the general public, and the feeling of strong consistency for the user who is actually making changes.
 
 ## Chapter 5: Key Takeaways
@@ -1145,6 +1274,12 @@ With our new, scalable architecture in place, we started hiring. Our team grew f
 Our process for deploying code was, in hindsight, terrifyingly simple. An engineer would write some code on their laptop, test it to see if it worked for them, and then push it to our central code repository on GitHub. A simple script would then automatically take this new code and deploy it directly to our live, production servers-the servers that our hundred thousand sellers and their millions of customers were using.
 
 From a developer's brain to a live user's screen in under five minutes. We thought this was the pinnacle of agility. In reality, it was like doing a trapeze act without a safety net.
+
+```mermaid
+flowchart LR
+    Dev["Developer Laptop"] --> Repo["GitHub Repo"]
+    Repo --> Prod["Production Environment<br>(Live Users)"]
+```
 
 One Tuesday afternoon, a new junior developer-let's call him Rohan-was tasked with adding a simple feature: a button to sort products by price. He was a sharp kid, and he built the feature in a couple of hours. On his laptop, using his test store which had about 15 products, it worked perfectly. The products sorted instantly. Confident in his work, he pushed the code.
 
@@ -1174,6 +1309,12 @@ He was right. We had been flying without a parachute. It was time to grow up.
 The root of our problem was that we had only two places where our code existed: on a developer's laptop, and in front of live customers. There was no step in between. A professional software team needs a proper assembly line, with quality checks at each stage. This is the **Software Development Lifecycle**.
 
 #### **Technical Deep Dive: The Environments**
+
+```mermaid
+flowchart LR
+    Dev["Development Environment<br>(Developer Laptop)"] --> Staging["Staging Environment<br>(Production Mirror)"]
+    Staging --> Prod["Production Environment<br>(Live Users)"]
+```
 
 Think of a high-end restaurant. They don't just cook and serve. They have a rigorous process that involves three distinct environments.
 
@@ -1268,6 +1409,23 @@ Our old method of a developer manually running a script to push code directly to
 We needed to replace this chaotic sprint with a calm, orderly, and predictable process. We needed to build an assembly line for our code. In the tech world, this is called a **Deployment Pipeline**.
 
 #### **Technical Deep Dive: The Deployment Pipeline**
+```mermaid
+flowchart LR
+    Dev["Developer Code"]
+    PR["Pull Request"]
+    Review["Code Review"]
+    Tests["Automated Tests"]
+    Staging["Deploy to Staging"]
+    QA["Manual QA"]
+    Prod["Deploy to Production"]
+
+    Dev --> PR
+    PR --> Review
+    Review --> Tests
+    Tests --> Staging
+    Staging --> QA
+    QA --> Prod
+```
 
 A deployment pipeline is an automated process that takes code from a developer's laptop and safely moves it through a series of quality checks before it is finally delivered to users.
 
@@ -1331,6 +1489,25 @@ This process transformed our team. It replaced chaos with order, anxiety with co
 ## Chapter 7: The Need for Speed: Caching with Redis
 
 We had survived the wars of stability. Our architecture was now resilient, our deployment process was professional, and our systems could withstand crashes and traffic spikes. We had grown from a garage band into a well-rehearsed orchestra. Our user base had crossed the 1 million seller mark, a milestone that felt like a dream just a few months prior.
+At this point, our production system looked like this:
+
+```mermaid
+flowchart LR
+ subgraph Production["Production"]
+        App1["App Server 1<br>(Django + Gunicorn)"]
+        LB["Nginx Load Balancer"]
+        App2["App Server 2<br>(Django + Gunicorn)"]
+        DBM["PostgreSQL Master"]
+        DBR["PostgreSQL Read Replica"]
+  end
+    LB --> App1 & App2
+    App1 -- Writes --> DBM
+    App2 -- Writes --> DBM
+    App1 -- Reads --> DBR
+    App2 -- Reads --> DBR
+    DBM -- Streaming Replication --> DBR
+    Users["Users / Browsers"] --> LB
+```
 
 But a new challenge was emerging, one that was quieter but just as dangerous as a server crash. Our problem was no longer about _availability_; it was about _performance_. It wasn't enough for our stores to be online; they had to be fast. In the world of e-commerce, speed isn't a feature; it's a fundamental requirement. A one-second delay in page load time can lead to a significant drop in conversions.
 
@@ -1361,7 +1538,7 @@ We were fetching the store's details, then its theme settings, then all its cate
 
 Even though our read replica was powerful and each of those 114 queries was individually very fast (maybe 5-10 milliseconds each), the cumulative effect was devastating.
 
-> 114 queries * 10ms per query = 1140ms
+> 114 queries \* 10ms per query = 1140ms
 
 > That's over a full second of just database time, a concept called "death by a thousand cuts." Add in the network latency for each of those calls and the time for our server to render the page, and the 5-6 second load time started to make perfect sense.
 
@@ -1475,8 +1652,27 @@ Every single subsequent visitor for the next hour would trigger a "CACHE HIT". T
 Our architecture had evolved once again, with Redis now sitting as a high-speed buffer between our application and our database.
 
 The new flow was: User Request -> Application -> **Check Redis First** -> (If Miss) -> PostgreSQL Database.
+```mermaid
+flowchart LR
+    User --> App["Application Servers"]
 
+    App -->|Check Cache| Redis["Redis Cache"]
+    Redis -->|Cache Hit| App
+
+    App -->|Cache Miss| DB["PostgreSQL"]
+    DB --> App
+    App -->|Store Result| Redis
+```
 #### **The New Problem: Stale Cache**
+```mermaid
+flowchart LR
+    Seller["Seller Updates Price"] --> DB["Master Database"]
+
+    User["Customer"] --> App["Application Servers"]
+    App --> Redis["Redis Cache"]
+
+    Redis -.-> Note["Old price still cached"]
+```
 
 We had solved the speed problem. But in doing so, we had created a new, insidious one.
 
@@ -1544,6 +1740,22 @@ The complete flow was a thing of beauty:
 - The service instantly knows what to do. It says, "The data for store 456 is now stale. I must destroy the cache."
 - The service connects to Redis and issues a single, lightning-fast command: DEL store_catalog:store-456. The old JSON object on the whiteboard is instantly erased.
 
+```mermaid
+flowchart LR
+    Seller["Seller Updates Product"] --> App["Application Servers"]
+
+    App -->|Write| DB["PostgreSQL Master"]
+    DB -->|Trigger| Notify["NOTIFY product_changes"]
+
+    Notify --> Inval["Cache Invalidator Service"]
+    Inval -->|DEL store_catalog:*| Redis["Redis Cache"]
+
+    User["Customer"] --> App
+    App -->|Read| Redis
+    App -->|Cache Miss| DB
+    App -->|Repopulate Cache| Redis
+```
+
 Now, when Priya refreshes her store page, our application code checks Redis. It finds nothing (a "cache miss"). It then proceeds to query the database, gets the fresh, correct price of ₹800, rebuilds the JSON, and saves this new, correct version back to the cache. The ghost of old data was vanquished.
 
 <br/>
@@ -1574,7 +1786,18 @@ One afternoon, the Operations squad was working on a new integration with a logi
 Both teams worked in parallel. Both tested their features on the staging server. Everything looked fine. The logistics feature was approved first and deployed to production. An hour later, the discounts feature was also approved and deployed.
 
 And then, chaos.
+```mermaid
+flowchart TB
+    subgraph Monolith["Monolithic Django Application"]
+        Orders["Orders"]
+        Payments["Payments"]
+        Logistics["Logistics"]
+        Storefront["Storefront"]
+    end
 
+    Growth["Growth Team"] --> Monolith
+    Ops["Operations Team"] --> Monolith
+```
 Our payment processing webhook, the critical endpoint that confirms a customer's payment has been successful, started failing for every single order. Money was being charged to customers, but the orders weren't being marked as "Paid" in our system. From a seller's perspective, orders were just vanishing after payment.
 
 Suumit's call was immediate. This wasn't about a slow website; this was about losing our users' money. This was a five-alarm fire.
@@ -1655,6 +1878,21 @@ The Storefront is the public-facing part of a seller's shop-the page that custom
 There was one more massive advantage. The Storefront had a completely different **scaling profile** from the rest of the application. The seller dashboard might get thousands of visits a day, but a popular store's page could get _millions_. By carving it out, we could scale it independently. We could have a fleet of 20 powerful servers for the Storefront service, while keeping a smaller, more efficient fleet of 3 servers for the seller dashboard, saving us a huge amount of money.
 
 The plan was set. We would perform surgery. We would carefully extract all the code, templates, and logic related to the public storefront and re-build it as a brand new, completely independent application: the storefront-service.
+```mermaid
+flowchart TB
+    subgraph Core["Core API (Former Monolith)"]
+        Orders["Orders"]
+        Payments["Payments"]
+        Logistics["Logistics"]
+    end
+
+    StoreSvc["Storefront Service<br>(Read-only)"]
+
+    DB[(PostgreSQL Read Replica)]
+
+    Core --> DB
+    StoreSvc --> DB
+```
 
 #### **The New Problem: Inter-Service Communication**
 
@@ -1677,6 +1915,13 @@ We needed a strategy to replace the old system piece by piece, gradually and saf
 #### **Technical Deep Dive: The Strangler Fig Pattern**
 
 In the rainforest, a strangler fig is a vine that begins its life on an old, established tree. It starts small, sending down roots around the host tree's trunk. Over years, these roots grow thicker and stronger, creating a new, powerful lattice structure that completely envelops the old tree. Eventually, the host tree inside can die and rot away, leaving behind the strong, healthy, and perfectly formed structure of the strangler fig.
+```mermaid
+flowchart TB
+    Users["Users"] --> Nginx["Nginx (Router / Proxy)"]
+
+    Nginx -->|/dashboard /orders| Core["Core API"]
+    Nginx -->|/store/*| StoreSvc["Storefront Service"]
+```
 
 This is a perfect metaphor for replacing a legacy system.
 
@@ -1694,6 +1939,12 @@ Over months or years, the new microservices (the fig vine) grow stronger and tak
 
 #### **Our Implementation: Nginx as the Strangler**
 
+```mermaid
+flowchart LR
+    Phase1["Phase 1<br>Storefront Traffic"] --> M1["Monolith"]
+    Phase2["Phase 2<br>Storefront Traffic"] --> M2["Core API"] & S2["Storefront Service"]
+    Phase3["Phase 3<br>Storefront Traffic"] --> S3["Storefront Service"]
+```
 Once again, our trusty tool Nginx was perfect for the job. We were already using it as a load balancer. We could enhance its configuration to also act as this intelligent router.
 
 We built our new, standalone storefront-service. It was a lean, fast application whose only job was to render store pages. Then, we updated the Nginx configuration on our load balancer with some new logic:
@@ -1785,6 +2036,14 @@ We restarted the script, and the problem was solved, but the damage was done. We
 
 #### **Identifying the Problem: A System Built on a Prayer**
 
+```mermaid
+flowchart LR
+    App["Monolith App"] --> DB["PostgreSQL Master"]
+    DB -- NOTIFY --> Invalidator["Cache Invalidator (Listener)"]
+    Invalidator --> Redis["Redis Cache"]
+    Invalidator -.-> Problem["Single Point of Failure<br>Messages lost if crashed"]
+```
+
 The incident exposed the fundamental weakness of our event-driven system. The LISTEN/NOTIFY mechanism was a clever feature of Postgres, but it was not a robust, production-grade messaging system.
 
 - **It Was Fragile:** As we discovered, if our listener service crashed or disconnected, any messages sent by the database during that downtime were lost forever. There was no persistence. The database just shouts the message into the void; if no one is listening, the message disappears.
@@ -1820,6 +2079,21 @@ A distributed log like Apache Kafka works on a completely different principle. I
 - **Analogy:** A producer (our main app) is a journalist. When a product price changes, the journalist writes a short article: "Price changed for store 456." They don't send it to a specific person; they publish it in a specific section of the newspaper, let's say the **product_updates** section (this is the **Topic** in Kafka).
 - Now, multiple independent subscribers can read this newspaper. The Cache Invalidator service subscribes to the product_updates section. A new Search Indexer service can also subscribe to the same section to update its search results. An Analytics service can also subscribe to track pricing trends.
 - Crucially, when the Cache Invalidator reads the article, the article is **not removed** from the newspaper. It remains there for other subscribers to read. The newspaper itself is a durable, permanent record of everything that has happened.
+
+```mermaid
+flowchart TB
+    subgraph Queue["Message Queue"]
+        P1["Producer"] --> Q["Queue"]
+        Q --> C1["Single Consumer"]
+    end
+
+    subgraph Kafka["Kafka (Distributed Log)"]
+        P2["Producer"] --> T["Topic (Event Log)"]
+        T --> C2["Consumer A"]
+        T --> C3["Consumer B"]
+        T --> C4["Consumer C"]
+    end
+```
 
 This was the lightbulb moment for us. Our problem wasn't just about telling one service to invalidate a cache. We were starting to see a future where many different parts of our system would need to react to the same events. When an order is placed, we need to:
 
@@ -1866,6 +2140,12 @@ Debezium is an open-source **Change Data Capture (CDC)** platform. To understand
 
 - **The Problem:** How do you know when a change has been made to the master manuscript in the vault? You could ask the author to shout "I've made a change!" every time they write something, but they might forget.
 - **The Debezium Solution:** Debezium is like a high-tech scanner placed directly over the master manuscript. It doesn't watch the author; it watches the manuscript itself. It reads the ink as it dries. The moment a single word is added, changed, or erased in the database's transaction log (the WAL), Debezium sees it, captures the exact change, formats it into a perfect message, and produces it to the correct Kafka topic.
+```mermaid
+flowchart LR
+    App["Monolith App"] --> DB["PostgreSQL Master"]
+    DB -->|WAL| Debezium["Debezium (CDC)"]
+    Debezium --> Kafka["Kafka Topic<br>(product_updates)"]
+```
 
 This was revolutionary for us. Our monolith application **didn't even need to know that Kafka existed**. We made zero changes to our application's write logic. We just kept saving data to our PostgreSQL database as we always had. Debezium worked in the background, completely independently, watching the database's WAL and faithfully publishing every single change to our Kafka topics. This completely decoupled our application from our messaging system. It was cleaner, more reliable, and impossible for a developer to forget.
 
@@ -1876,7 +2156,19 @@ The final step was to upgrade our Cache Invalidator service. This was simple. We
 The new service simply subscribed to the product_updates topic (which was now being reliably populated by Debezium). When a message came in, it would read the store_id from the message payload and fire off the redis_client.del() command. Thanks to Kafka's consumer groups, we could now run two or three instances of this service at the same time. If one crashed, the others would seamlessly pick up the slack. Our single point of failure was gone.
 
 #### **The New Blueprint**
+```mermaid
+flowchart LR
+    App["Core Monolith<br/>(Writes Data)"] --> DB["PostgreSQL Master"]
 
+    DB -->|WAL| Debezium["Debezium CDC"]
+    Debezium --> Kafka["Kafka Topic<br/>(Durable Event Log)"]
+
+    Kafka --> CI["Cache Invalidator<br/>(Implemented Consumer Group)"]
+
+    Kafka --> Future["Other Future Consumers<br/>(Search, Analytics, etc.)"]
+
+    CI --> Redis["Redis Cache"]
+```
 Our data consistency architecture was now robust, scalable, and elegant. The flow was completely different.
 
 **Monolith App -> Master DB (WAL) -> Debezium -> Kafka Topic -> Consumer Service(s) -> Redis**
@@ -1895,6 +2187,53 @@ Kafka is incredibly powerful, but it's not magic. It's a complex piece of infras
 - Are our topics filling up the disk space on the brokers?
 
 We had traded the fragility of our old system for the **operational complexity** of the new one. Our simple house was now a complex estate with its own power plant. The power plant is far more reliable, but it requires skilled engineers to maintain it. This was a necessary trade-off, the price of admission for building a true microservices architecture.
+
+Complete system architecture after introducing microservices, caching, and Kafka-based data consistency:
+```mermaid
+flowchart LR
+    %% ===== USERS =====
+    Users["Users / Customers"]
+
+    %% ===== ENTRY =====
+    Nginx["NGINX<br/>(Load Balancer + Strangler Router)"]
+    Users --> Nginx
+
+    %% ===== APPLICATION LAYER =====
+    subgraph AppLayer["Application Layer"]
+        Monolith["Core API<br/>(Monolith)"]
+        Storefront["Storefront Service<br/>(Read-heavy Microservice)"]
+    end
+
+    Nginx --> Monolith
+    Nginx --> Storefront
+
+    %% ===== CACHE (FASTEST PATH) =====
+    Redis["Redis Cache<br/>(Cache-first)"]
+
+    Monolith -->|GET / SET| Redis
+    Storefront -->|GET / SET| Redis
+
+    %% ===== DATABASE =====
+    subgraph DBLayer["Database Layer"]
+        Master["PostgreSQL Master<br/>(Writes)"]
+        Replica["PostgreSQL Read Replica<br/>(Reads on Cache MISS)"]
+    end
+
+    %% Writes
+    Monolith -->|WRITE| Master
+
+    %% Reads (only if cache miss)
+    Monolith -->|READ| Replica
+    Storefront -->|READ| Replica
+
+    %% ===== EVENT PIPELINE =====
+    Master -->|"WAL"| Debezium["Debezium<br/>(CDC)"]
+    Debezium --> Kafka["Kafka Topics"]
+
+    %% ===== CONSUMER =====
+    Kafka --> CI["Cache Invalidator<br/>(Kafka Consumer Service)"]
+    CI -->|DEL keys| Redis
+```
 
 ## Chapter 9: Key Takeaways
 
@@ -1970,6 +2309,32 @@ Before Docker, our application was like that chaotic cargo hold. To run it on a 
 Docker allowed us to package our entire application-the code, the specific version of Python, all the required libraries, and even the necessary parts of the operating system-into a single, neat, standardized box called a **container**.
 
 Now, we could pick up that container and run it on any server that had Docker installed-Anjali's Macbook, our staging server, our production server-and it would work in the exact same way, every single time. The "it works on my machine" problem was solved forever. The container _was_ the machine.
+
+```mermaid
+flowchart TB
+ subgraph VM["Virtual Machines (Heavy)"]
+        VM_HW["Physical Server<br>(CPU / RAM / Disk)"]
+        VM_HV["Hypervisor"]
+        VM1["VM 1<br>Guest OS<br>App"]
+        VM2["VM 2<br>Guest OS<br>App"]
+        VM3["VM 3<br>Guest OS<br>App"]
+        VM_note["Each VM has its own full OS<br>• High overhead<br>• Slow startup<br>• Fewer apps per server"]
+  end
+ subgraph CT["Containers (Lightweight)"]
+        CT_HW["Physical Server<br>"]
+        CT_OS["Host OS Kernel"]
+        CT_Docker["Docker Engine"]
+        C1["Container 1<br>App + Deps"]
+        C2["Container 2<br>App + Deps"]
+        C3["Container 3<br>App + Deps"]
+        CT_note["All containers share host OS kernel<br>• Low overhead<br>• Fast startup<br>• Many more apps per server"]
+  end
+    VM_HW --> VM_HV
+    VM_HV --> VM1 & VM2 & VM3
+    CT_HW --> CT_OS
+    CT_OS --> CT_Docker
+    CT_Docker --> C1 & C2 & C3
+```
 
 #### **The Docker Components: Blueprint, Box, and Building**
 
@@ -2199,6 +2564,26 @@ The new, complete data flow for a product update was a perfect illustration of t
 - Now, two completely independent services, both subscribed to this same topic, spring into action simultaneously:
   - **Consumer #1 (The Cache Invalidator):** Our existing service sees the message, reads the store_id, and sends a command to **Redis** to delete the old, stale cache for that store.
   - **Consumer #2 (The New Search Service):** Our new service also receives the exact same message. It parses the full product data, transforms it into a JSON document, and sends it to the **Elasticsearch** cluster to be indexed.
+```mermaid
+flowchart TB
+
+    User["User"] --> Storefront["Storefront / API"]
+    Storefront --> SearchAPI["Search Service"]
+
+    SearchAPI --> ES["Elasticsearch<br>(Inverted Index + Ranking)"]
+
+    Seller["Seller Updates Product"] --> App["Monolith App"]
+    App --> DB["PostgreSQL Master"]
+
+    DB -->|WAL| Debezium
+    Debezium --> Kafka["Kafka Topic<br>product_updates"]
+
+    Kafka --> CacheInv["Cache Invalidator"]
+    Kafka --> SearchSvc["Search Service<br>(Indexer)"]
+
+    CacheInv --> Redis["Redis Cache"]
+    SearchSvc --> ES
+```
 
 This system was beautiful. The monolith application, which handled the seller's initial action, had **zero knowledge** that a search engine or a cache even existed. Its only job was to save data to the database. The downstream systems-caching, search, and in the future, analytics or a recommendation engine-could all independently subscribe to the stream of events and react accordingly. We could add new features powered by these events without ever touching our core application code.
 
@@ -2298,6 +2683,34 @@ This was the final step. Our website's code was still generating old image links
 We had to update our code to generate new links that pointed to the CDN instead. We also set up a custom, more professional-looking domain name, cdn.dukaan.app, that pointed to the ugly CloudFront address. The new image URLs now looked like this: <https://cdn.dukaan.app/seller123/product.jpg>
 
 We deployed the code change. The surgery was complete.
+```mermaid
+flowchart LR
+    User["User"]
+
+    subgraph Mumbai["Mumbai Region"]
+        App["App Server (Django)"]
+        DB["Primary Database"]
+    end
+
+    subgraph Global["Global"]
+        CDN["CDN Edge 
+        (Nearest to User)"]
+        Origin["Static Asset Origin 
+        (S3 in Mumbai)"]
+    end
+
+    %% HTML flow
+    User -->|1. HTML request| App
+    App -->|2. Query| DB
+    DB -->|3. Data| App
+    App -->|4. HTML response| User
+
+    %% Static asset flow
+    User -->|5. Image / CSS / JS request| CDN
+    CDN -->|6. Cache miss once| Origin
+    Origin -->|7. Asset| CDN
+    CDN -->|8. Asset| User
+```
 
 #### **The Result: A Faster Site and a Cheaper Bill**
 
@@ -2685,7 +3098,7 @@ But loading a secure webpage isn't one conversation; it's a series of them that 
 
 Just to get the first byte of the HTML page, a user in India had to wait for at least 5 round trips.
 
-> 5 round trips * 130ms/trip = 650ms
+> 5 round trips \* 130ms/trip = 650ms
 
 This meant a Shopify store hosted in the US was guaranteed to have _at least_ a 650ms delay for an Indian user before anything even started to appear on the screen. And that's before accounting for network congestion and the time it takes to download all the images, CSS, and JavaScript files. The 3-4 second load times were inevitable. It was a tax imposed by physics.
 
@@ -2821,6 +3234,16 @@ This required a significant change in our application's core logic. We had to bu
 - If **no**, open a connection to the **Public Shard DB**.
 
 This logic was implemented across our entire codebase, ensuring that the data and the workload for our enterprise clients and our public sellers would be completely isolated from each other, from the moment the request first hit our application.
+```mermaid
+flowchart TB
+    UserA["Normal Seller Customers"] --> App["Dukaan App Servers"]
+    UserB["WOW Customers"] --> App
+
+    App --> Router["Shard Router<br>(Decides DB Based on store_id)"]
+
+    Router --> PublicDB["Public Shard DB Cluster<br>(All small/medium sellers)"]
+    Router --> EnterpriseDB["Enterprise Shard DB Cluster<br>(WOW only)"]
+```
 
 #### **The Benefits of the Fortress**
 
@@ -2994,9 +3417,9 @@ The combination of these technologies allowed us to achieve our moonshot goal. F
 When you build a centralized system, you create a single, massive target. A failure in that one location, whether due to a technical fault or a malicious attack, takes down your entire platform. A distributed edge network fundamentally changes this dynamic, creating a more resilient, self-healing system.
 
 - **DDoS Attack Mitigation:** A Distributed Denial-of-Service (DDoS) attack works by flooding a target with so much traffic that it becomes overwhelmed and unavailable. In a traditional architecture, an attack on dukaan.app would have all its traffic funneled to our central Mumbai servers, quickly overwhelming them.  
-    With our edge network, the game changes. The attack traffic is also routed by Anycast. An attack originating from a botnet in Europe would be absorbed entirely by our **Frankfurt edge location**. An attack from North America would hit our **Ohio edge location**. The attack's force is naturally distributed across our global footprint. The malicious traffic is firewalled and fought off at the edge, while our users in Asia, South America, and other parts of the world experience zero performance degradation. The attack surface is spread so thin that it becomes incredibly difficult to take down the entire platform.
+   With our edge network, the game changes. The attack traffic is also routed by Anycast. An attack originating from a botnet in Europe would be absorbed entirely by our **Frankfurt edge location**. An attack from North America would hit our **Ohio edge location**. The attack's force is naturally distributed across our global footprint. The malicious traffic is firewalled and fought off at the edge, while our users in Asia, South America, and other parts of the world experience zero performance degradation. The attack surface is spread so thin that it becomes incredibly difficult to take down the entire platform.
 - **Fault Isolation and Uptime:** This principle extends beyond malicious attacks. The world of cloud computing is not perfect; data centers have outages. In a centralized model, if the us-east-1 AWS region has a major failure (which it has in the past), any company hosted solely there goes down completely.  
-    Our architecture created a series of watertight compartments. If our entire Mumbai cluster were to go offline, our Anycast network would automatically detect this. It would withdraw the route announcement from that location, and within seconds, start re-routing Indian users to the next nearest healthy location, likely Singapore. The user experience might have slightly higher latency (e.g., 60ms instead of 20ms), but the site would **remain online**. This ability to automatically route around regional failures gave us a level of stability and uptime that a centralized system simply cannot achieve.
+   Our architecture created a series of watertight compartments. If our entire Mumbai cluster were to go offline, our Anycast network would automatically detect this. It would withdraw the route announcement from that location, and within seconds, start re-routing Indian users to the next nearest healthy location, likely Singapore. The user experience might have slightly higher latency (e.g., 60ms instead of 20ms), but the site would **remain online**. This ability to automatically route around regional failures gave us a level of stability and uptime that a centralized system simply cannot achieve.
 
 #### **Pillar 3: Scale - The Elastic Coastline**
 
@@ -3477,7 +3900,7 @@ Then, I moved my cursor to a new line. The tension was palpable. Arpit was leani
 
 I typed the command, slowly, deliberately:
 
-> sudo shutdown -h now 
+> sudo shutdown -h now
 
 I hovered my finger over the Enter key for a beat, letting the gravity of the moment sink in. Then I pressed it.
 
@@ -3541,7 +3964,7 @@ We weren't afraid of a server failing because we had architected for failure. We
 
 The podcast was the ultimate proof. We had not just mastered the machine; we had demonstrated that mastery to the world.
 
-## Chapter 18: Key Takeaways**
+## Chapter 18: Key Takeaways\*\*
 
 - **The ultimate test of a resilient system is its ability to handle live, unexpected failure with grace.** Don't just believe your system is resilient; test it.
 - **Radical transparency builds immense trust.** Showing your real architecture, your real numbers, and even trying to break your own systems in public is a powerful way to establish your credibility and attract the best talent.

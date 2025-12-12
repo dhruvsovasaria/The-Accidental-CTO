@@ -1,0 +1,11 @@
+flowchart LR
+    App["Core Monolith<br/>(Writes Data)"] --> DB["PostgreSQL Master"]
+
+    DB -->|WAL| Debezium["Debezium CDC"]
+    Debezium --> Kafka["Kafka Topic<br/>(Durable Event Log)"]
+
+    Kafka --> CI["Cache Invalidator<br/>(Implemented Consumer Group)"]
+
+    Kafka --> Future["Other Future Consumers<br/>(Search, Analytics, etc.)"]
+
+    CI --> Redis["Redis Cache"]

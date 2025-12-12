@@ -1,0 +1,43 @@
+flowchart LR
+    %% ===== USERS =====
+    Users["Users / Customers"]
+
+    %% ===== ENTRY =====
+    Nginx["NGINX<br/>(Load Balancer + Strangler Router)"]
+    Users --> Nginx
+
+    %% ===== APPLICATION LAYER =====
+    subgraph AppLayer["Application Layer"]
+        Monolith["Core API<br/>(Monolith)"]
+        Storefront["Storefront Service<br/>(Read-heavy Microservice)"]
+    end
+
+    Nginx --> Monolith
+    Nginx --> Storefront
+
+    %% ===== CACHE (FASTEST PATH) =====
+    Redis["Redis Cache<br/>(Cache-first)"]
+
+    Monolith -->|GET / SET| Redis
+    Storefront -->|GET / SET| Redis
+
+    %% ===== DATABASE =====
+    subgraph DBLayer["Database Layer"]
+        Master["PostgreSQL Master<br/>(Writes)"]
+        Replica["PostgreSQL Read Replica<br/>(Reads on Cache MISS)"]
+    end
+
+    %% Writes
+    Monolith -->|WRITE| Master
+
+    %% Reads (only if cache miss)
+    Monolith -->|READ| Replica
+    Storefront -->|READ| Replica
+
+    %% ===== EVENT PIPELINE =====
+    Master -->|"WAL"| Debezium["Debezium<br/>(CDC)"]
+    Debezium --> Kafka["Kafka Topics"]
+
+    %% ===== CONSUMER =====
+    Kafka --> CI["Cache Invalidator<br/>(Kafka Consumer Service)"]
+    CI -->|DEL keys| Redis

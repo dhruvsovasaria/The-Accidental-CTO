@@ -1,0 +1,13 @@
+flowchart LR
+    Seller["Seller Updates Product"] --> App["Application Servers"]
+
+    App -->|Write| DB["PostgreSQL Master"]
+    DB -->|Trigger| Notify["NOTIFY product_changes"]
+
+    Notify --> Inval["Cache Invalidator Service"]
+    Inval -->|DEL store_catalog:*| Redis["Redis Cache"]
+
+    User["Customer"] --> App
+    App -->|Read| Redis
+    App -->|Cache Miss| DB
+    App -->|Repopulate Cache| Redis

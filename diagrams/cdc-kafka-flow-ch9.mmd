@@ -1,0 +1,4 @@
+flowchart LR
+    App["Monolith App"] --> DB["PostgreSQL Master"]
+    DB -->|WAL| Debezium["Debezium (CDC)"]
+    Debezium --> Kafka["Kafka Topic<br>(product_updates)"]
