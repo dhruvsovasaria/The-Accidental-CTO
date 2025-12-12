@@ -1,0 +1,17 @@
+flowchart TB
+ TopNote["Architecture After the Divorce"]
+
+ subgraph AppSrv["Application Server"]
+    direction TB
+        Nginx2["Nginx"]
+        Gunicorn2["Gunicorn"]
+        Django2["Django Application"]
+  end
+ subgraph DBSrv["Database Server"]
+    direction TB
+        DB2[("PostgreSQL Database")]
+  end
+    Client(["Client / Browser"]) -- HTTP --> Nginx2
+    Nginx2 --> Gunicorn2
+    Gunicorn2 --> Django2
+    Django2 -- SQL over network --> DB2

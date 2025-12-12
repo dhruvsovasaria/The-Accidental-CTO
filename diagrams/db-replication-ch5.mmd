@@ -1,0 +1,7 @@
+    flowchart LR
+    Users["Users"] --> App["Application Servers"]
+
+    App -->|Writes| Master["Master Database<br>(Writes Only)"]
+    App -->|Reads| Replica["Read Replica<br>(Reads Only)"]
+
+    Master -->|WAL Stream<br>Replication| Replica

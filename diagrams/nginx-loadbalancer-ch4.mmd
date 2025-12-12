@@ -1,0 +1,12 @@
+flowchart TB
+ subgraph Server1["App Server 1"]
+        Nginx["NGINX<br>(Web Server + Load Balancer) <br><br>"]
+        App1["Django App <br>(Gunicorn)"]
+  end
+ subgraph Server2["App Server 2"]
+        App2["Django App <br>(Gunicorn)"]
+  end
+    Users["Users"] --> Nginx
+    Nginx --> App1 & App2
+    App1 --> DB[("Shared Database Server")]
+    App2 --> DB

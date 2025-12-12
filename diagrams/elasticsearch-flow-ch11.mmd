@@ -1,0 +1,18 @@
+flowchart TB
+
+    User["User"] --> Storefront["Storefront / API"]
+    Storefront --> SearchAPI["Search Service"]
+
+    SearchAPI --> ES["Elasticsearch<br>(Inverted Index + Ranking)"]
+
+    Seller["Seller Updates Product"] --> App["Monolith App"]
+    App --> DB["PostgreSQL Master"]
+
+    DB -->|WAL| Debezium
+    Debezium --> Kafka["Kafka Topic<br>product_updates"]
+
+    Kafka --> CacheInv["Cache Invalidator"]
+    Kafka --> SearchSvc["Search Service<br>(Indexer)"]
+
+    CacheInv --> Redis["Redis Cache"]
+    SearchSvc --> ES

@@ -1,0 +1,14 @@
+flowchart TB
+ TopNote["Architecture Before the Divorce"]
+ subgraph Server1["single machine"]
+    direction TB
+        Nginx["Nginx (Web Server)"]
+        Gunicorn["Gunicorn (App Server)"]
+        Django["Django Application"]
+        DB[("PostgreSQL Database")]
+  end
+    Client(["Client / Browser"]) -- HTTP --> Nginx
+    Nginx --> Gunicorn
+    Gunicorn --> Django
+    Django -- SQL CRUD (reads/writes) --> DB
+

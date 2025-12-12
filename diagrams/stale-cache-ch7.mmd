@@ -1,0 +1,7 @@
+flowchart LR
+    Seller["Seller Updates Price"] --> DB["Master Database"]
+
+    User["Customer"] --> App["Application Servers"]
+    App --> Redis["Redis Cache"]
+
+    Redis -.-> Note["Old price still cached"]

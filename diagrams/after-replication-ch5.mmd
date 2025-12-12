@@ -1,0 +1,10 @@
+flowchart LR
+    Seller["Seller (just updated data)"] --> App["Application Servers"]
+    Customer["Customer / Public User"] --> App
+
+    App -->|Write| Master["Master Database"]
+    App -->|Read during VIP window| Master
+
+    App -->|Normal Reads| Replica["Read Replica"]
+
+    Master -->|Replication| Replica

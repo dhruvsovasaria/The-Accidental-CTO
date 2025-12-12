@@ -1,0 +1,11 @@
+flowchart TB
+ subgraph After["After Scaling"]
+        S2["Single Large Server<br>(More CPU / RAM)"]
+        U2["Users"]
+  end
+ subgraph Before["Before Scaling"]
+        S1["Single Small Server"]
+        U1["Users"]
+  end
+    U2 --> S2
+    U1 --> S1
